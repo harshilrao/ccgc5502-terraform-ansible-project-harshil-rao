@@ -1,0 +1,8 @@
+---
+- name: Append block to /etc/profile
+  blockinfile:
+    path: /etc/profile
+    marker: "# {mark} MANAGED BY ANSIBLE (n01717500)"
+    block: |
+      # Test block added by Ansible……Harshil Rao
+      export TMOUT=1500

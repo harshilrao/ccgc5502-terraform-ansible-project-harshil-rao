@@ -1,0 +1,10 @@
+# Terraform files
+*.tfstate
+*.tfstate.backup
+.terraform/
+terraform.tfvars
+tfplan
+
+# Sensitive keys
+*.pem
+ansible/downloads/*

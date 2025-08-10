@@ -1,0 +1,39 @@
+---
+- name: Install Apache (Ubuntu)
+  apt:
+    name: apache2
+    state: present
+    update_cache: yes
+
+- name: Ensure Apache started and enabled
+  service:
+    name: apache2
+    state: started
+    enabled: yes
+  notify: Restart Apache
+
+# Ensure local files/ folder exists on the control machine
+- name: Ensure local files dir exists
+  file:
+    path: "{{ playbook_dir }}/roles/webserver-n01717500/files"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  become: no
+  run_once: true
+
+# Generate per-host file with FQDN on control machine (no sudo)
+- name: Generate per-host file with FQDN (on control machine)
+  copy:
+    dest: "{{ playbook_dir }}/roles/webserver-n01717500/files/{{ inventory_hostname_short }}.html"
+    content: "{{ ansible_fqdn }}\n"
+    mode: '0644'
+  delegate_to: localhost
+  become: no
+
+# Copy node-specific file as index.html on each VM
+- name: Copy node-specific file as index.html
+  copy:
+    src: "{{ playbook_dir }}/roles/webserver-n01717500/files/{{ inventory_hostname_short }}.html"
+    dest: /var/www/html/index.html
+    mode: '0444'

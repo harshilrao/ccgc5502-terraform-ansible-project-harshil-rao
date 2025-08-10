@@ -1,0 +1,9 @@
+---
+- name: Apply all roles to Linux VMs
+  hosts: linux
+  become: yes
+  roles:
+    - role: profile-n01717500
+    - role: user-n01717500
+    - role: datadisk-n01717500
+    - role: webserver-n01717500

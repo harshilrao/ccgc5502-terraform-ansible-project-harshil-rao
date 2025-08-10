@@ -1,0 +1,119 @@
+---
+# Detect a usable data disk: Azure path (lun1) -> /dev/sdc -> /dev/vdb
+- name: Candidate data disks
+  set_fact:
+    data_disk_candidates:
+      - /dev/disk/azure/scsi1/lun1
+      - /dev/sdc
+      - /dev/vdb
+
+- name: Check which candidate exists
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ data_disk_candidates }}"
+  register: disk_stats
+
+- name: Pick the first existing device
+  set_fact:
+    data_disk: "{{ (disk_stats.results | selectattr('stat.exists') | list)[0].stat.path }}"
+  when: (disk_stats.results | selectattr('stat.exists') | list)|length > 0
+
+- name: Fail if no data disk was found
+  fail:
+    msg: "No data disk detected (checked {{ data_disk_candidates }})"
+  when: data_disk is not defined
+
+# Figure out partition name style: '-part1' vs '1'
+- name: Determine partition suffix style
+  set_fact:
+    part1_path: "{{ data_disk ~ ('-part1' if (data_disk is search('lun1$')) else '1') }}"
+    part2_path: "{{ data_disk ~ ('-part2' if (data_disk is search('lun1$')) else '2') }}"
+
+# Tools
+- name: Install xfsprogs (for XFS)
+  apt:
+    name: xfsprogs
+    state: present
+    update_cache: yes
+
+# Probe table and existing partitions
+- name: Check partition table type
+  command: lsblk -no PTTYPE {{ data_disk }}
+  register: pttype
+  changed_when: false
+  failed_when: false
+
+- name: Check if any partitions already exist
+  command: lsblk -no NAME {{ data_disk }}
+  register: partprobe
+  changed_when: false
+
+- name: Set has_partitions fact
+  set_fact:
+    has_partitions: "{{ (partprobe.stdout_lines | select('match', '.*[0-9]+$') | list | length) > 0 }}"
+
+# Create GPT label only if there's no label AND no partitions
+- name: Create GPT label (only when safe)
+  command: parted -s {{ data_disk }} mklabel gpt
+  when:
+    - (pttype.stdout | trim) != "gpt"
+    - not has_partitions
+  register: mklabel_result
+  failed_when: mklabel_result.rc not in [0]
+
+# Create ~4GiB and ~5GiB partitions (idempotent: ok if present)
+- name: Create 4GB partition (part1)
+  parted:
+    device: "{{ data_disk }}"
+    number: 1
+    state: present
+    part_start: 1MiB
+    part_end: 4097MiB
+
+- name: Create 5GB partition (part2)
+  parted:
+    device: "{{ data_disk }}"
+    number: 2
+    state: present
+    part_start: 4097MiB
+    part_end: 9729MiB
+
+# Filesystems (safe if already formatted)
+- name: Make XFS on part1
+  filesystem:
+    fstype: xfs
+    dev: "{{ part1_path }}"
+  register: mkfs1
+  failed_when: mkfs1.rc is defined and mkfs1.rc not in [0]
+
+- name: Make EXT4 on part2
+  filesystem:
+    fstype: ext4
+    dev: "{{ part2_path }}"
+  register: mkfs2
+  failed_when: mkfs2.rc is defined and mkfs2.rc not in [0]
+
+# Mount points
+- name: Create mount points
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /part1
+    - /part2
+
+# Persistent mounts
+- name: Mount part1 (XFS)
+  mount:
+    path: /part1
+    src: "{{ part1_path }}"
+    fstype: xfs
+    state: mounted
+
+- name: Mount part2 (EXT4)
+  mount:
+    path: /part2
+    src: "{{ part2_path }}"
+    fstype: ext4
+    state: mounted
