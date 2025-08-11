@@ -209,19 +209,6 @@ terraform destroy --auto-approve
 
 ## Notes & Tips
 
-- This project assumes **Ubuntu** for the web role (uses `apache2`). If you change to CentOS/RHEL, update the role to install `httpd` instead of `apache2`.
 - Keep `terraform.tfvars` **out of Git**. Share a `terraform.tfvars.example` if needed.
 - If you want a **remote backend** (Azure Storage) for shared state, add `backend.tf` and grant `Storage Blob Data Contributor` to your user; otherwise this README uses the default **local** backend to avoid cross-PC failures.
 - If SSH to `user100` fails: ensure Ansible finished without errors and that you used the downloaded key from `ansible/downloads/user100_id_rsa`.
-
----
-
-## One-liner Quick Start (advanced)
-
-```bash
-cd terraform && terraform init && terraform apply -auto-approve && LB_IP=$(terraform output -raw lb_public_ip) && printf "[linux]
-vm1 ansible_host=%s ansible_port=50000
-vm2 ansible_host=%s ansible_port=50001
-vm3 ansible_host=%s ansible_port=50002
-" "$LB_IP" "$LB_IP" "$LB_IP" > hosts && cd .. && ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i terraform/hosts ansible/n01717500-playbook.yml
-```
