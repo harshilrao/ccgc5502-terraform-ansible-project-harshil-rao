@@ -14,9 +14,10 @@
 ```bash
 # 1. Clone the repository
 git clone https://github.com/harshilrao/ccgc5502-terraform-ansible-project-harshil-rao
-cd Ansible-Project
+cd ccgc5502-terraform-ansible-project-harshil-rao
 
 # 2. Initialize Terraform
+cd terraform
 terraform init
 
 # 3. Validate configuration
